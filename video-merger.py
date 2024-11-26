@@ -81,22 +81,65 @@ class VideoProcessor:
             if os.path.splitext(f)[1].lower() in video_extensions
         ]
 
-    def convert_video(self, input_path: str, output_path: str) -> bool:
+    def convert_video(
+        self, input_path: str, output_path: str, target_fps: int = 30
+    ) -> bool:
         """
-        使用FFmpeg转换单个视频文件
+        使用FFmpeg转换单个视频文件，并统一帧率
 
         参数:
         - input_path: 输入视频路径
         - output_path: 输出视频路径
+        - target_fps: 目标帧率，默认30fps
 
         返回:
         - 是否成功转换
         """
         try:
+            # 首先获取输入视频的信息
+            probe_command = [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_streams",
+                input_path,
+            ]
+
+            probe_result = subprocess.run(probe_command, capture_output=True, text=True)
+            if probe_result.returncode != 0:
+                self.logger.error(f"无法获取视频信息: {input_path}")
+                return False
+
             ext = os.path.splitext(output_path)[1][1:]
             params = self.ffmpeg_params.get(ext, self.ffmpeg_params["mp4"])
 
-            command = ["ffmpeg", "-i", input_path] + params + [output_path]
+            # 添加帧率控制参数
+            command = [
+                "ffmpeg",
+                "-i",
+                input_path,
+                "-vsync",
+                "1",  # 帮助保持视频同步
+                "-r",
+                str(target_fps),  # 设置输出帧率
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",  # 统一音频采样率
+                "-b:a",
+                "192k",  # 统一音频比特率
+                "-max_muxing_queue_size",
+                "1024",  # 增加复用队列大小
+                output_path,
+            ]
 
             result = subprocess.run(command, capture_output=True, text=True)
 
@@ -113,17 +156,7 @@ class VideoProcessor:
             return False
 
     def merge_videos(self, output_filename: str = "merged_video.mp4") -> bool:
-        """
-        合并所有视频文件
-
-        参数:
-        - output_filename: 输出文件名
-
-        返回:
-        - 是否成功合并
-        """
         try:
-            # 获取视频文件列表
             video_files = self._get_video_files()
 
             if not video_files:
@@ -135,10 +168,11 @@ class VideoProcessor:
             for video in video_files:
                 output_path = os.path.join(
                     self.output_folder,
-                    # 获取视频文件名，去掉扩展名，并添加转换后的文件扩展名
                     f"{os.path.splitext(os.path.basename(video))[0]}_converted.{self.output_format}",
                 )
-                if self.convert_video(video, output_path):
+                if self.convert_video(
+                    video, output_path, target_fps=30
+                ):  # 统一使用30fps
                     converted_files.append(output_path)
 
             # 创建文件列表文本
@@ -159,6 +193,8 @@ class VideoProcessor:
                 list_file_path,
                 "-c",
                 "copy",
+                "-vsync",
+                "2",  # 添加视频同步参数
                 merged_path,
             ]
 
