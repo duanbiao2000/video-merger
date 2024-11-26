@@ -6,6 +6,7 @@ from typing import List
 
 
 class VideoProcessor:
+
     def __init__(
         self,
         input_folder: str,
@@ -22,12 +23,6 @@ class VideoProcessor:
         - output_format: 目标输出视频格式，默认为 'mp4'
         - log_level: 日志级别，默认为 'INFO'
         """
-        # 设置日志
-        logging.basicConfig(
-            level=getattr(logging, log_level.upper()),
-            format="%(asctime)s - %(levelname)s: %(message)s",
-        )
-        self.logger = logging.getLogger(__name__)
 
         # 输入输出路径处理
         self.input_folder = os.path.abspath(input_folder)
@@ -38,39 +33,13 @@ class VideoProcessor:
         self.output_format = output_format
         self.supported_formats = ["mp4", "avi", "mkv", "mov", "wmv"]
 
-        # FFmpeg 转换配置
-        self.ffmpeg_params = {
-            "mp4": [
-                "-c:v",
-                "libx264",
-                "-preset",
-                "medium",
-                "-crf",
-                "23",
-                "-c:a",
-                "aac",
-            ],
-            "avi": [
-                "-c:v",
-                "libx264",
-                "-preset",
-                "medium",
-                "-crf",
-                "23",
-                "-c:a",
-                "aac",
-            ],
-            "mkv": [
-                "-c:v",
-                "libx264",
-                "-preset",
-                "medium",
-                "-crf",
-                "23",
-                "-c:a",
-                "aac",
-            ],
-        }
+        # 设置日志
+
+        logging.basicConfig(
+            level=getattr(logging, log_level.upper()),
+            format="%(asctime)s - %(levelname)s: %(message)s",
+        )
+        self.logger = logging.getLogger(__name__)
 
     def _get_video_files(self) -> List[str]:
         """获取支持的视频文件列表"""
@@ -107,13 +76,10 @@ class VideoProcessor:
                 input_path,
             ]
 
-            probe_result = subprocess.run(probe_command, capture_output=True, text=True)
+            probe_result = subprocess.run(probe_command, capture_output=True)
             if probe_result.returncode != 0:
                 self.logger.error(f"无法获取视频信息: {input_path}")
                 return False
-
-            ext = os.path.splitext(output_path)[1][1:]
-            params = self.ffmpeg_params.get(ext, self.ffmpeg_params["mp4"])
 
             # 添加帧率控制参数
             command = [
